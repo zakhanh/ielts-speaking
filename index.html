@@ -33,6 +33,14 @@ body{font-family:'Inter',sans-serif;background:radial-gradient(circle at 50% 0,#
   <h1 class="text-3xl sm:text-4xl font-bold mb-4 tracking-tight">IELTS Speaking <span class="text-gray-400">Test</span></h1>
   <p class="text-gray-400 mb-6 text-sm sm:text-base leading-relaxed">Giám khảo sẽ đặt câu hỏi, bạn trả lời như đi thi thật. Sau đó, bài nói của bạn sẽ được AI chấm điểm theo IELTS Band Descriptors.</p>
   <div class="mb-6 text-left">
+    <h3 class="font-semibold mb-2 text-sm">API key của bạn</h3>
+    <div class="flex gap-2">
+      <input id="key-input" type="password" autocomplete="off" spellcheck="false" placeholder="Dán Gemini API key vào đây" class="flex-grow min-w-0 bg-neutral-900/70 border border-neutral-700 rounded-lg px-3 py-2.5 text-sm text-gray-200 placeholder-gray-600 focus:outline-none focus:border-neutral-400 transition-colors font-mono">
+      <button id="btn-key" class="btn bg-white text-black hover:bg-gray-200 disabled:bg-neutral-700 disabled:text-gray-400 rounded-lg px-4 text-sm font-medium shrink-0">Kết nối</button>
+    </div>
+    <p class="text-xs text-gray-500 mt-2">Có thể dán key này vào: <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener" class="underline hover:text-gray-300">AQ.Ab8RN6IfX69Hk90vFrbyY76LZg7AqFSWzdG2zXebT27VOjz4yQ</a></p>
+  </div>
+  <div class="mb-6 text-left">
     <h3 class="font-semibold mb-3 text-sm">Chọn đề thi</h3>
     <div class="grid grid-cols-3 gap-3">
       <button data-t="1" class="tcard btn rounded-xl border-2 border-neutral-700 px-3 py-4 text-center"><div class="font-bold">Test 1</div><div class="text-[11px] text-gray-400 mt-1">Study, technology &amp; skills</div></button>
@@ -152,7 +160,8 @@ body{font-family:'Inter',sans-serif;background:radial-gradient(circle at 50% 0,#
 
 <script>
 // ================= CONFIG =================
-const GEMINI_API_KEY = "AQ.Ab8RN6IgdBkGoV9WCEEOKILiCx31hzgn6d6Hw4MdTDHL2fuZhw";
+let GEMINI_API_KEY = "";
+try { GEMINI_API_KEY = localStorage.getItem("gemini_api_key") || ""; } catch {}
 const BASE = "https://generativelanguage.googleapis.com/v1beta/models/";
 // Thứ tự ưu tiên: mạnh nhất -> yếu nhất. Sửa model id tại đây nếu Google đổi tên.
 const OPTIONS = [
@@ -318,6 +327,11 @@ function connRows(st) {
 }
 async function preflight() {
   const b = $("btn-start"), sum = $("conn-summary");
+  if (!GEMINI_API_KEY) {
+    active = -1; connRows([]); b.disabled = true; b.textContent = "Nhập API key để bắt đầu";
+    sum.textContent = "Dán API key ở trên rồi bấm Kết nối."; sum.className = "mt-3 text-sm font-medium text-gray-400";
+    $("btn-recheck").classList.add("hid"); return;
+  }
   b.disabled = true; b.textContent = "Đang kiểm tra API..."; sum.textContent = ""; sum.className = "mt-3 text-sm font-medium";
   $("btn-recheck").classList.add("hid"); active = -1;
   const st = []; connRows(st);
@@ -335,13 +349,22 @@ async function preflight() {
     sum.textContent = `Đã kết nối: Option ${active + 1} (${TIERS[active]}) — ${OPTIONS[active].name}`; sum.classList.add("text-emerald-300");
     updateStart();
   } else {
-    sum.textContent = "⚠ Không kết nối được bất kỳ Option nào. Không thể chấm điểm, vui lòng khắc phục rồi kiểm tra lại.";
+    sum.textContent = "⚠ Không kết nối được bất kỳ Option nào. Hãy kiểm tra lại API key (hoặc tạo key mới) rồi bấm Kết nối.";
     sum.classList.add("text-red-400");
     b.textContent = "Lỗi API Key - Vui lòng kiểm tra lại trước khi thi";
     $("btn-recheck").classList.remove("hid");
   }
 }
 $("btn-recheck").onclick = preflight;
+function connectKey() {
+  const k = $("key-input").value.trim();
+  if (!k) { $("key-input").focus(); return; }
+  GEMINI_API_KEY = k; try { localStorage.setItem("gemini_api_key", k); } catch {}
+  $("btn-key").disabled = true; preflight().finally(() => $("btn-key").disabled = false);
+}
+$("btn-key").onclick = connectKey;
+$("key-input").onkeydown = e => { if (e.key === "Enter") connectKey(); };
+$("key-input").value = GEMINI_API_KEY;
 preflight();
 
 // ================= STATE =================
