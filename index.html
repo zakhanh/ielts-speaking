@@ -1,0 +1,652 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>IELTS Speaking Test - AI Examiner</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<style>
+body{font-family:'Inter',sans-serif;background:radial-gradient(circle at 50% 0,#1a1a1a,#0a0a0a 60%);color:#ededed;overflow-x:hidden}
+.glass{background:rgba(30,30,30,.6);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);border:1px solid rgba(255,255,255,.08);border-radius:1rem;box-shadow:0 4px 30px rgba(0,0,0,.5)}
+.hid{display:none!important}
+.view{transition:opacity .35s ease,transform .35s ease}
+.fade{animation:fade .5s ease both}
+@keyframes fade{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
+@keyframes ring{0%{transform:scale(.8);box-shadow:0 0 0 0 rgba(255,255,255,.6)}70%{transform:scale(1);box-shadow:0 0 0 10px rgba(255,255,255,0)}100%{transform:scale(.8);box-shadow:0 0 0 0 rgba(255,255,255,0)}}
+.rec-dot{width:12px;height:12px;background:#fff;border-radius:50%;animation:ring 2s infinite}
+.btn{transition:transform .2s ease,box-shadow .25s ease,background-color .2s ease,opacity .35s ease}
+.btn:not(:disabled):hover{transform:translateY(-2px) scale(1.05);box-shadow:0 10px 28px rgba(0,0,0,.55)}
+.btn:not(:disabled):active{transform:scale(.97)}
+.vb{width:6px;height:6px;border-radius:9999px;background:#52525b;transition:height .07s linear,background .4s}
+#viz[data-m=listen] .vb{background:linear-gradient(to top,#10b981,#a7f3d0)}
+#viz[data-m=speak] .vb{background:#a3a3a3}
+::-webkit-scrollbar{width:6px}::-webkit-scrollbar-track{background:#1a1a1a}::-webkit-scrollbar-thumb{background:#444;border-radius:3px}
+</style>
+</head>
+<body class="min-h-screen flex flex-col items-center justify-center p-4 sm:p-8">
+
+<canvas id="confetti" class="fixed inset-0 pointer-events-none z-50"></canvas>
+
+<!-- WELCOME -->
+<div id="v-welcome" class="view glass max-w-2xl w-full p-8 text-center fade flex flex-col">
+  <h1 class="text-3xl sm:text-4xl font-bold mb-4 tracking-tight">IELTS Speaking <span class="text-gray-400">Test</span></h1>
+  <p class="text-gray-400 mb-6 text-sm sm:text-base leading-relaxed">Giám khảo sẽ đặt câu hỏi, bạn trả lời như đi thi thật. Sau đó, bài nói của bạn sẽ được AI chấm điểm theo IELTS Band Descriptors.</p>
+  <div class="mb-6 text-left">
+    <h3 class="font-semibold mb-3 text-sm">Chọn đề thi</h3>
+    <div class="grid grid-cols-3 gap-3">
+      <button data-t="1" class="tcard btn rounded-xl border-2 border-neutral-700 px-3 py-4 text-center"><div class="font-bold">Test 1</div><div class="text-[11px] text-gray-400 mt-1">Study, technology &amp; skills</div></button>
+      <button data-t="2" class="tcard btn rounded-xl border-2 border-neutral-700 px-3 py-4 text-center"><div class="font-bold">Test 2</div><div class="text-[11px] text-gray-400 mt-1">Hometown &amp; nature</div></button>
+      <button data-t="3" class="tcard btn rounded-xl border-2 border-neutral-700 px-3 py-4 text-center"><div class="font-bold">Test 3</div><div class="text-[11px] text-gray-400 mt-1">Tự nhập đề</div></button>
+    </div>
+    <div id="custom-box" class="hid mt-4">
+      <textarea id="custom-text" rows="11" class="w-full bg-neutral-900/70 border border-neutral-700 rounded-lg p-3 text-sm text-gray-200 placeholder-gray-600 focus:outline-none focus:border-neutral-400 transition-colors font-mono" placeholder="PART 1&#10;1. Do you work or are you a student?&#10;2. What do you like about your hometown?&#10;&#10;PART 2&#10;Describe a place you like to visit.&#10;You should say:&#10;* where this place is&#10;* what it is like&#10;* what you do there&#10;And explain why you like it.&#10;&#10;PART 3&#10;1. Why do people like to travel?&#10;2. How can tourism affect local communities?"></textarea>
+      <p id="custom-status" class="text-xs mt-2"></p>
+    </div>
+  </div>
+  <div class="bg-neutral-800/50 rounded-lg p-5 mb-5 text-left border border-neutral-700/50">
+    <h3 class="font-semibold mb-2">🎙️ Cần quyền truy cập micro</h3>
+    <ul class="text-sm text-gray-300 space-y-1.5 list-disc pl-5">
+      <li>Chọn nơi yên tĩnh.</li>
+      <li>Im lặng hơn 5 giây, giám khảo sẽ ngắt lời và chuyển câu.</li>
+      <li>Bấm <b>Tiếp tục</b> khi bạn đã nói xong một câu.</li>
+      <li>Part 2: 1 phút chuẩn bị, tối đa 2 phút nói.</li>
+    </ul>
+  </div>
+  <div class="bg-neutral-800/50 rounded-lg p-5 mb-6 text-left border border-neutral-700/50">
+    <h3 class="font-semibold mb-3 text-sm">Kết nối AI chấm điểm</h3>
+    <div id="conn-list" class="space-y-2 text-sm"></div>
+    <p id="conn-summary" class="mt-3 text-sm font-medium"></p>
+    <button id="btn-recheck" class="btn hid mt-3 border border-neutral-500 hover:bg-neutral-800 rounded-full px-4 py-1.5 text-xs">Kiểm tra lại</button>
+  </div>
+  <button id="btn-start" disabled class="btn mx-auto bg-white text-black hover:bg-gray-200 disabled:bg-neutral-700 disabled:text-gray-400 disabled:cursor-not-allowed font-medium py-3 px-8 rounded-full shadow-[0_0_15px_rgba(255,255,255,.2)]">Đang kiểm tra API...</button>
+  <p id="mic-err" class="text-xs text-red-400 mt-3 hid"></p>
+</div>
+
+<!-- EXAM -->
+<div id="v-exam" class="view max-w-5xl w-full hid flex flex-col gap-4 min-h-[85vh]">
+  <div class="glass px-6 py-4 flex justify-between items-center">
+    <div><span class="text-[11px] font-semibold tracking-widest uppercase text-gray-500">Current Phase</span><h2 id="ui-title" class="text-lg font-bold">Part 1</h2></div>
+    <div class="flex items-center gap-3 bg-neutral-800/80 px-4 py-2 rounded-full border border-neutral-700/50"><div class="rec-dot"></div><span id="ui-elapsed" class="text-sm font-mono tracking-widest text-gray-300">00:00</span></div>
+  </div>
+  <div class="flex flex-col lg:flex-row gap-4 flex-grow">
+    <aside id="ui-card" class="glass p-5 lg:w-72 lg:shrink-0 self-start w-full">
+      <span class="text-[11px] uppercase tracking-widest text-gray-500">Đề bài</span>
+      <p id="ui-q" class="mt-2 text-base font-medium leading-snug"></p>
+      <div id="ui-p2" class="hid mt-3 pt-3 border-t border-neutral-700/50">
+        <p class="text-xs text-gray-400 mb-2">You should say:</p>
+        <ul id="ui-p2-bullets" class="list-disc pl-5 text-sm text-gray-300 space-y-1"></ul>
+      </div>
+    </aside>
+    <main class="glass flex-grow flex flex-col items-center justify-center p-6 sm:p-10 gap-6">
+      <div id="ui-status" class="flex items-center gap-2 px-4 py-1.5 rounded-full text-sm border border-neutral-600 text-gray-300"><span id="ui-dot" class="w-2 h-2 rounded-full bg-gray-400"></span><span id="ui-status-t"></span></div>
+      <div class="text-center"><div id="ui-cd" class="text-7xl sm:text-8xl font-mono font-light tracking-tighter">00:00</div><div id="ui-cdl" class="text-xs uppercase tracking-widest text-gray-500 mt-2"></div></div>
+      <div id="ui-bar-wrap" class="w-full max-w-lg h-2 bg-neutral-800 rounded-full overflow-hidden transition-opacity duration-500"><div id="ui-bar" class="h-full rounded-full" style="width:100%;background:#34d399"></div></div>
+      <div id="viz" data-m="idle" class="h-44 flex items-center justify-center gap-[5px] w-full"></div>
+      <button id="btn-next" class="btn opacity-0 pointer-events-none flex items-center bg-neutral-800 hover:bg-neutral-700 font-medium py-3 px-8 rounded-full border border-neutral-600 shadow-lg">
+        <span id="btn-next-t">Tiếp tục</span>
+        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 ml-2" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
+      </button>
+    </main>
+  </div>
+</div>
+
+<!-- LOADING -->
+<div id="v-load" class="view glass max-w-md w-full p-10 text-center hid flex flex-col items-center justify-center">
+  <div class="w-12 h-12 border-4 border-gray-600 border-t-emerald-400 rounded-full animate-spin mb-6"></div>
+  <h2 class="text-xl font-bold mb-2">Đang chấm bài</h2>
+  <p id="ui-stage" class="text-sm text-gray-400"></p>
+</div>
+
+<!-- ERROR -->
+<div id="v-err" class="view glass max-w-xl w-full p-8 hid flex flex-col items-center border-2 !border-red-500">
+  <h2 class="text-xl font-bold mb-3 text-red-400">⚠ Chấm điểm thất bại</h2>
+  <div id="err-msg" class="text-sm text-red-300 mb-4 break-words w-full space-y-2 font-mono"></div>
+  <p class="text-xs text-gray-500 mb-4 text-center">Không có điểm giả. Bản ghi âm vẫn còn: bạn có thể thử chấm lại hoặc tải về.</p>
+  <div class="flex flex-wrap gap-3 justify-center">
+    <button id="btn-retry" class="btn bg-white text-black rounded-full px-5 py-2 text-sm font-medium hover:bg-gray-200">Thử chấm lại</button>
+    <button id="btn-dl" class="btn border border-neutral-500 rounded-full px-5 py-2 text-sm hover:bg-neutral-800">Tải bản ghi âm</button>
+    <button onclick="location.reload()" class="btn border border-neutral-500 rounded-full px-5 py-2 text-sm hover:bg-neutral-800">Làm lại bài thi</button>
+  </div>
+</div>
+
+<!-- CONGRATS -->
+<div id="v-congrats" class="view glass max-w-lg w-full p-10 text-center hid flex flex-col items-center">
+  <div class="text-6xl mb-4">🎉</div>
+  <h2 class="text-2xl sm:text-3xl font-bold mb-2">Chúc mừng bạn!</h2>
+  <p class="text-gray-300 mb-6">Bạn đã hoàn thành xong bài test này. Kết quả của bạn đã sẵn sàng.</p>
+  <button id="btn-see" class="btn bg-white text-black hover:bg-gray-200 font-medium py-3 px-8 rounded-full shadow-[0_0_15px_rgba(255,255,255,.2)]">Xem kết quả</button>
+</div>
+
+<!-- RESULT -->
+<div id="v-res" class="view w-full max-w-6xl hid flex flex-col gap-6">
+  <div class="flex flex-col lg:flex-row gap-6">
+    <div class="glass p-8 lg:w-1/3 flex flex-col">
+      <h2 class="text-xl font-bold mb-6 text-gray-400 border-b border-neutral-700/50 pb-3">Kết quả</h2>
+      <div class="flex flex-col items-center mb-4 bg-neutral-800/30 py-6 rounded-xl border border-neutral-700/30">
+        <span class="text-sm uppercase tracking-widest text-gray-500 mb-1">Overall Band</span>
+        <span id="r-overall" class="text-6xl font-bold">--</span>
+      </div>
+      <div id="radar" class="my-2"></div>
+      <div class="grid grid-cols-2 gap-3 mt-2">
+        <div class="bg-neutral-800/40 p-3 rounded-lg text-center"><span class="text-xs text-gray-400 block mb-1">Fluency</span><span id="r-fluency" class="text-2xl font-semibold">--</span></div>
+        <div class="bg-neutral-800/40 p-3 rounded-lg text-center"><span class="text-xs text-gray-400 block mb-1">Lexical</span><span id="r-lexical" class="text-2xl font-semibold">--</span></div>
+        <div class="bg-neutral-800/40 p-3 rounded-lg text-center"><span class="text-xs text-gray-400 block mb-1">Grammar</span><span id="r-grammar" class="text-2xl font-semibold">--</span></div>
+        <div class="bg-neutral-800/40 p-3 rounded-lg text-center"><span class="text-xs text-gray-400 block mb-1">Pronunciation</span><span id="r-pron" class="text-2xl font-semibold">--</span></div>
+      </div>
+      <p id="r-model" class="text-[11px] text-gray-500 mt-4"></p>
+      <button onclick="location.reload()" class="btn mt-6 w-full border border-neutral-600 hover:bg-neutral-800 py-3 rounded-full text-sm font-medium">Thi lại</button>
+    </div>
+    <div class="glass p-8 lg:w-1/3 overflow-y-auto max-h-[85vh]">
+      <h2 class="text-xl font-bold mb-6 text-gray-400 border-b border-neutral-700/50 pb-3">Nhận xét giám khảo</h2>
+      <div id="r-feedback" class="space-y-5 text-sm leading-relaxed"></div>
+    </div>
+    <div class="glass p-8 lg:w-1/3 bg-neutral-900/80 lg:sticky lg:top-4 self-start w-full max-h-[85vh] flex flex-col">
+      <h2 class="text-xl font-bold mb-2">📓 Sổ tay điểm yếu</h2>
+      <p class="text-xs text-gray-500 mb-4 pb-3 border-b border-neutral-700/50">Lỗi trích từ chính lời bạn nói.</p>
+      <div id="r-notebook" class="overflow-y-auto space-y-3 pr-2"></div>
+    </div>
+  </div>
+  <p id="footer-note" class="text-center text-sm text-gray-400 pb-6"></p>
+</div>
+
+<script>
+// ================= CONFIG =================
+const GEMINI_API_KEY = "AQ.Ab8RN6IgdBkGoV9WCEEOKILiCx31hzgn6d6Hw4MdTDHL2fuZhw";
+const BASE = "https://generativelanguage.googleapis.com/v1beta/models/";
+// Thứ tự ưu tiên: mạnh nhất -> yếu nhất. Sửa model id tại đây nếu Google đổi tên.
+const OPTIONS = [
+  { label: "Option 1", name: "Gemini 3.8 Flash", id: "gemini-3.8-flash" },
+  { label: "Option 2", name: "Gemini 3.7 Flash", id: "gemini-3.7-flash" },
+  { label: "Option 3", name: "Gemini 3.5 Flash", id: "gemini-3.5-flash" }
+];
+const LIM = { 1: { max: 30000, sil: 5000 }, 3: { max: 120000, sil: 8000 } }; // Part 3 = 4x Part 1
+const P2_PREP = 60, P2_SPEAK = 120, SILENCE_LEVEL = 6;
+
+// ================= ĐỀ THI =================
+const P2_INSTR = "Now, I'm going to give you a topic and I'd like you to talk about it for one to two minutes. Before you talk, you'll have one minute to think about what you're going to say. You can make some notes if you wish. Here is your topic.";
+const P3_LEAD = "We've been talking about the topic in Part 2. Now I'd like to discuss some more general questions related to it.";
+const TESTS = {
+  1: {
+    part1: ["Do you work or are you a student?", "Why did you choose your current field of study?", "What do you find most challenging about your studies?", "What would you like to do after you graduate?", "What electronic devices do you use every day?", "Has technology changed the way you study?", "Do you prefer learning from videos or from books? Why?", "Is there any technology you would like to use more in the future?"],
+    part2: { instruction: P2_INSTR, topic: "Describe a skill you learned that was useful to you.", bullets: ["what the skill was", "when and how you learned it", "why you decided to learn it", "and explain how this skill has been useful to you."] },
+    part3Lead: "We've been talking about a skill you learned. Now I'd like to discuss one or two more general questions related to this.",
+    part3: ["What skills do young people need most to succeed in today's world?", "Do you think schools should focus more on practical skills than academic knowledge?", "How has technology changed the way people learn new skills?", "Is it better to learn a skill independently or with the help of a teacher?", "Why do some people find it difficult to adapt to new technology?", "Do you think the skills needed for work will change significantly in the future?"]
+  },
+  2: {
+    part1: ["Where is your hometown?", "What do you like most about your hometown?", "Has your hometown changed much in recent years?", "Would you like to live there in the future? Why or why not?", "Do you enjoy spending time in nature?", "How often do you visit parks or other natural places?", "Did you spend much time outdoors when you were a child?", "Do you think people today spend enough time in nature?"],
+    part2: { instruction: P2_INSTR, topic: "Describe a place in nature that you would like to visit.", bullets: ["where this place is", "what it is like", "what you would do there", "and explain why you would like to visit this place."] },
+    part3Lead: "We've been talking about a place in nature. Now I'd like to discuss one or two more general questions related to this.",
+    part3: ["Why do many people prefer living in cities even though cities often have more pollution and less contact with nature?", "Should governments spend more money protecting natural areas, even if this means spending less on other public services?", "How can tourism benefit local communities, and what problems can it cause?", "Do you think international travel is more valuable than travelling within one's own country?", "What can individuals do to protect the environment in their daily lives?", "Do you think environmental problems can be solved without international cooperation?"]
+  }
+};
+let TEST = null, STEPS = [];
+function buildSteps(T) {
+  return [
+    ...T.part1.map((q, i) => ({ part: 1, q, n: i + 1, of: T.part1.length, lead: i === 0 ? "Good morning. Welcome to the speaking test. Let's start with Part 1." : "" })),
+    { part: 2 },
+    ...T.part3.map((q, i) => ({ part: 3, q, n: i + 1, of: T.part3.length, lead: i === 0 ? T.part3Lead : "" }))
+  ];
+}
+const TITLES = { 1: "Part 1: Interview", 2: "Part 2: Long Turn", 3: "Part 3: Discussion" };
+
+
+// ================= HELPERS =================
+const $ = id => document.getElementById(id);
+const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+const md = s => esc(s).replace(/\*\*(.+?)\*\*/g, '<b class="text-white">$1</b>').replace(/^- (.+)$/gm, "<li>$1</li>")
+  .replace(/(<li>.*<\/li>\n?)+/g, m => '<ul class="list-disc pl-5 my-1">' + m.replace(/\n/g, "") + "</ul>").replace(/\n/g, "<br>");
+const fmt = s => String(Math.floor(s / 60)).padStart(2, "0") + ":" + String(Math.floor(s % 60)).padStart(2, "0");
+
+// Gọi Gemini: key đặt ở HTTP header x-goog-api-key (không đặt trên URL)
+async function gemini(modelId, payload, ms) {
+  const c = new AbortController(), t = setTimeout(() => c.abort(), ms);
+  try {
+    const r = await fetch(BASE + modelId + ":generateContent", {
+      method: "POST", signal: c.signal,
+      headers: { "Content-Type": "application/json", "x-goog-api-key": GEMINI_API_KEY },
+      body: JSON.stringify(payload)
+    });
+    const raw = await r.text(); let j = null; try { j = JSON.parse(raw); } catch {}
+    if (!r.ok) throw new Error(`HTTP ${r.status} ${j?.error?.status || ""} — ${j?.error?.message || raw.slice(0, 300)}`);
+    return j;
+  } catch (e) {
+    if (e.name === "AbortError") throw new Error("Hết thời gian chờ phản hồi (timeout).");
+    if (e instanceof TypeError) throw new Error("Không kết nối được mạng tới generativelanguage.googleapis.com (mất mạng hoặc bị chặn).");
+    throw e;
+  } finally { clearTimeout(t); }
+}
+
+
+const FOOTER_NOTE = "Web này được tạo bởi Za Khánh cute phô mai que nhé 😄";
+
+// ================= VIEW TRANSITIONS (mờ dần -> chờ -> hiện dần) =================
+let cur = "welcome", swapId = 0;
+function show(v) {
+  if (v === cur) return;
+  const id = ++swapId, from = $("v-" + cur); cur = v;
+  from.style.transition = "opacity .35s ease, transform .35s ease"; from.style.opacity = 0; from.style.transform = "translateY(8px) scale(.98)";
+  setTimeout(() => {
+    if (id !== swapId) return;
+    ["welcome", "exam", "load", "err", "congrats", "res"].forEach(n => $("v-" + n).classList.toggle("hid", n !== v));
+    const to = $("v-" + v);
+    to.style.transition = "none"; to.style.opacity = 0; to.style.transform = "translateY(14px) scale(.98)"; void to.offsetWidth;
+    to.style.transition = "opacity .5s ease, transform .5s ease"; to.style.opacity = 1; to.style.transform = "none";
+  }, 380);
+}
+const setBtn = on => { const b = $("btn-next"); b.classList.toggle("opacity-0", !on); b.classList.toggle("pointer-events-none", !on); };
+function setStatus(t, k = "ex") {
+  $("ui-status-t").textContent = t;
+  $("ui-status").className = "flex items-center gap-2 px-4 py-1.5 rounded-full text-sm border transition-all duration-500 " + { ex: "border-neutral-600 text-gray-300 bg-neutral-800/60", on: "border-emerald-500/50 text-emerald-300 bg-emerald-500/10", prep: "border-amber-500/50 text-amber-300 bg-amber-500/10" }[k];
+  $("ui-dot").className = "w-2 h-2 rounded-full " + { ex: "bg-gray-400", on: "bg-emerald-400 animate-pulse", prep: "bg-amber-400" }[k];
+}
+function setClock(ms, total, faded) {
+  const c = $("ui-cd"), cls = "text-7xl sm:text-8xl font-mono font-light tracking-tighter transition-colors duration-500 " + (faded ? "text-white opacity-25" : ms <= 10000 ? "text-red-400" : "text-white");
+  c.textContent = fmt(Math.max(0, Math.ceil(ms / 1000)));
+  if (c._c !== cls) { c.className = cls; c._c = cls; }
+  const p = total ? Math.max(0, Math.min(100, ms / total * 100)) : 0, b = $("ui-bar");
+  b.style.width = p + "%"; b.style.background = p > 40 ? "#34d399" : p > 15 ? "#fbbf24" : "#f87171";
+  $("ui-bar-wrap").style.opacity = faded ? .25 : 1;
+}
+
+// ================= CHỌN ĐỀ + ĐỀ TỰ NHẬP (Test 3) =================
+let active = -1; // phải khai báo TRƯỚC selectTest(1), nếu không script dừng và không bao giờ kết nối API
+let sel = 1, customOK = false, customTest = null;
+function parseTest(txt) {
+  const t = { part1: [], part2: { instruction: P2_INSTR, topic: "", bullets: [] }, part3: [], part3Lead: P3_LEAD };
+  const clean = x => x.replace(/^(\d+\s*[.)]|[-*•]+)\s*/, "").trim();
+  let part = 0;
+  for (const raw0 of txt.split(/\r?\n/)) {
+    const raw = raw0.trim(); if (!raw) continue;
+    const m = raw.match(/^part\s*([123])\b/i); if (m) { part = +m[1]; continue; }
+    if (/^ielts\s+speaking/i.test(raw)) continue;
+    if (part === 1) t.part1.push(clean(raw));
+    else if (part === 3) t.part3.push(clean(raw));
+    else if (part === 2) {
+      if (/^you should say:?$/i.test(raw)) continue;
+      if (!t.part2.topic) {
+        const [a, b] = raw.split(/you should say:?/i);
+        t.part2.topic = clean(a); if (b) t.part2.bullets.push(...b.split(",").map(x => x.trim()).filter(Boolean));
+      } else t.part2.bullets.push(clean(raw));
+    }
+  }
+  const errs = [];
+  if (!t.part1.length) errs.push("thiếu câu hỏi Part 1 (gõ PART 1 rồi mỗi câu một dòng)");
+  if (!t.part2.topic) errs.push("thiếu đề Part 2");
+  if (!t.part3.length) errs.push("thiếu câu hỏi Part 3");
+  return { t, errs };
+}
+function checkCustom() {
+  const txt = $("custom-text").value.trim(), st = $("custom-status");
+  if (!txt) { customOK = false; st.textContent = "Nhập đề theo mẫu mờ ở trên: PART 1, PART 2, PART 3."; st.className = "text-xs mt-2 text-gray-500"; return; }
+  const { t, errs } = parseTest(txt); customTest = t; customOK = !errs.length;
+  st.textContent = errs.length ? "✕ " + errs.join(" · ") : `✓ Part 1: ${t.part1.length} câu · Part 2: OK (${t.part2.bullets.length} gợi ý) · Part 3: ${t.part3.length} câu`;
+  st.className = "text-xs mt-2 " + (errs.length ? "text-red-400" : "text-emerald-300");
+}
+function updateStart() {
+  if (active < 0) return;
+  const b = $("btn-start"), ok = sel !== 3 || customOK;
+  b.disabled = !ok; b.textContent = ok ? "Start Test" : "Nhập đề để bắt đầu";
+}
+function selectTest(n) {
+  sel = n;
+  document.querySelectorAll(".tcard").forEach(b => { const on = +b.dataset.t === n; b.classList.toggle("border-white", on); b.classList.toggle("bg-white/10", on); b.classList.toggle("border-neutral-700", !on); });
+  $("custom-box").classList.toggle("hid", n !== 3);
+  if (n === 3) checkCustom();
+  updateStart();
+}
+function applyTest() {
+  const t = sel === 3 ? customTest : TESTS[sel];
+  if (!t) return false;
+  TEST = t; STEPS = buildSteps(t); return true;
+}
+document.querySelectorAll(".tcard").forEach(b => b.onclick = () => selectTest(+b.dataset.t));
+$("custom-text").oninput = () => { checkCustom(); updateStart(); };
+selectTest(1);
+
+// ================= PRE-FLIGHT: thử lần lượt Option 1 -> 3 =================
+const TIERS = ["Best", "Pro", "Lite"];
+function connRows(st) {
+  $("conn-list").innerHTML = OPTIONS.map((o, i) => {
+    const s = st[i] || { t: "wait" };
+    const sty = { ok: "bg-emerald-500/15 border-emerald-500/50 text-emerald-300", fail: "bg-red-500/10 border-red-500/50 text-red-300", try: "bg-neutral-800/60 border-neutral-400 text-white", wait: "border-neutral-800 text-neutral-600", skip: "border-neutral-800 text-neutral-600" }[s.t];
+    const icon = { ok: "✓", fail: "✕", try: '<span class="inline-block w-5 h-5 border-2 border-neutral-600 border-t-white rounded-full animate-spin"></span>', wait: "", skip: "" }[s.t];
+    const msg = { ok: "Đã kết nối — dùng model này", try: "Đang kết nối...", fail: "Không kết nối được với máy chủ này", wait: "Chờ", skip: "Chưa cần dùng" }[s.t];
+    const detail = s.t === "fail" && s.m ? `<div class="text-[11px] mt-1 opacity-60 break-words font-mono">${esc(s.m)}</div>` : "";
+    return `<div class="flex items-center gap-3 rounded-lg border px-4 py-3 transition-all duration-500 ${sty}"><span class="w-5 h-5 shrink-0 flex items-center justify-center text-lg font-bold">${icon}</span><div class="text-left min-w-0 flex-grow"><div class="font-semibold">Option ${i + 1} <span class="font-normal opacity-80">(${TIERS[i]})</span> <span class="text-xs font-normal opacity-60 ml-1">${esc(o.name)}</span></div><div class="text-xs break-words opacity-90">${msg}</div>${detail}</div></div>`;
+  }).join("");
+}
+async function preflight() {
+  const b = $("btn-start"), sum = $("conn-summary");
+  b.disabled = true; b.textContent = "Đang kiểm tra API..."; sum.textContent = ""; sum.className = "mt-3 text-sm font-medium";
+  $("btn-recheck").classList.add("hid"); active = -1;
+  const st = []; connRows(st);
+  for (let i = 0; i < OPTIONS.length; i++) {
+    st[i] = { t: "try" }; connRows(st);
+    try {
+      const d = await gemini(OPTIONS[i].id, { contents: [{ parts: [{ text: "Reply with the single word OK." }] }], generationConfig: { maxOutputTokens: 64 } }, 20000);
+      if (!d.candidates && !d.usageMetadata) throw new Error("Phản hồi không hợp lệ từ API.");
+      st[i] = { t: "ok" }; active = i;
+      for (let k = i + 1; k < OPTIONS.length; k++) st[k] = { t: "skip" };
+      connRows(st); break;
+    } catch (e) { st[i] = { t: "fail", m: e.message }; connRows(st); }
+  }
+  if (active >= 0) {
+    sum.textContent = `Đã kết nối: Option ${active + 1} (${TIERS[active]}) — ${OPTIONS[active].name}`; sum.classList.add("text-emerald-300");
+    updateStart();
+  } else {
+    sum.textContent = "⚠ Không kết nối được bất kỳ Option nào. Không thể chấm điểm, vui lòng khắc phục rồi kiểm tra lại.";
+    sum.classList.add("text-red-400");
+    b.textContent = "Lỗi API Key - Vui lòng kiểm tra lại trước khi thi";
+    $("btn-recheck").classList.remove("hid");
+  }
+}
+$("btn-recheck").onclick = preflight;
+preflight();
+
+// ================= STATE =================
+let idx = 0, gen = 0, timers = [], cdInt = null, win = null, wins = [], sil0 = 0, prepCb = null, exSpeaking = false;
+let stream, rec, chunks = [], t0 = 0, gTimer, actx, analyser, blob;
+const T = (fn, ms) => { const id = setTimeout(fn, ms); timers.push(id); return id; };
+function closeWin() { if (win && win.end === null) win.end = (Date.now() - t0) / 1000; win = null; }
+function clearAll() { timers.forEach(clearTimeout); timers = []; clearInterval(cdInt); prepCb = null; exSpeaking = false; closeWin(); }
+function openWin(s, max, sil) {
+  win = { part: s.part, n: s.n || 1, q: s.q || TEST.part2.topic, start: (Date.now() - t0) / 1000, end: null, ms: Date.now(), max, sil };
+  wins.push(win); sil0 = 0;
+}
+
+// ================= SPEECH =================
+let preferred = null;
+function loadVoices() {
+  const v = speechSynthesis.getVoices();
+  preferred = v.find(x => x.lang === "en-GB" && /Google|Daniel|Serena/.test(x.name)) || v.find(x => x.lang === "en-US" && x.name.includes("Google")) || v.find(x => x.lang.startsWith("en")) || null;
+}
+speechSynthesis.onvoiceschanged = loadVoices;
+function say(text, g, cb) {
+  setStatus("Giám khảo đang nói...", "ex"); exSpeaking = true;
+  let fired = false;
+  const done = () => { if (!fired && g === gen) { fired = true; exSpeaking = false; cb(); } };
+  if (!("speechSynthesis" in window)) return T(done, 2000);
+  speechSynthesis.cancel();
+  const u = new SpeechSynthesisUtterance(text);
+  if (preferred) u.voice = preferred;
+  u.lang = "en-GB"; u.rate = 0.95; u.onend = u.onerror = done;
+  T(done, text.length * 110 + 3000);
+  speechSynthesis.speak(u);
+}
+
+// ================= RECORDING + VISUALIZER =================
+function startRecording() {
+  rec = new MediaRecorder(stream);
+  rec.ondataavailable = e => e.data.size && chunks.push(e.data);
+  rec.start(1000); t0 = Date.now();
+  actx = new (window.AudioContext || window.webkitAudioContext)();
+  analyser = actx.createAnalyser(); analyser.fftSize = 256; analyser.smoothingTimeConstant = .6;
+  actx.createMediaStreamSource(stream).connect(analyser);
+  const viz = $("viz"), N = 40; viz.innerHTML = "";
+  for (let i = 0; i < N; i++) { const b = document.createElement("div"); b.className = "vb"; viz.appendChild(b); }
+  const data = new Uint8Array(analyser.frequencyBinCount), bars = viz.children;
+  (function draw() {
+    requestAnimationFrame(draw);
+    analyser.getByteFrequencyData(data);
+    const avg = data.reduce((a, b) => a + b, 0) / data.length;
+    const mode = win ? "listen" : exSpeaking ? "speak" : "idle";
+    if (viz.dataset.m !== mode) viz.dataset.m = mode;
+    const tt = performance.now() / 1000;
+    for (let i = 0; i < N; i++) {
+      const env = .4 + .6 * Math.sin(Math.PI * (i + .5) / N);
+      let h;
+      if (mode === "listen") h = 6 + Math.min(1, (data[i + 2] || 0) / 255 * 1.7) * env * 150;
+      else if (mode === "speak") h = 10 + (Math.sin(tt * 5 + i * .55) + 1) * env * 22 + (Math.sin(tt * 3.1 + i * .9) + 1) * env * 10;
+      else h = 6 + (Math.sin(tt * 1.5 + i * .4) + 1) * 2;
+      bars[i].style.height = h + "px";
+    }
+    if (win) {
+      setClock(win.max - (Date.now() - win.ms), win.max, false);
+      if (win.sil) {
+        if (avg < SILENCE_LEVEL) { if (!sil0) sil0 = Date.now(); else if (Date.now() - sil0 > win.sil) { sil0 = 0; advance("Thank you."); } }
+        else sil0 = 0;
+      }
+    }
+  })();
+  gTimer = setInterval(() => $("ui-elapsed").textContent = fmt((Date.now() - t0) / 1000), 1000);
+}
+
+// ================= EXAM FLOW =================
+$("btn-start").onclick = async () => {
+  if (!applyTest()) return;
+  loadVoices();
+  if (!navigator.mediaDevices?.getUserMedia) return micErr("Trình duyệt không hỗ trợ micro. Hãy mở file bằng Chrome/Edge (file local hoặc localhost).");
+  try { stream = await navigator.mediaDevices.getUserMedia({ audio: true }); } catch (e) { return micErr("Không truy cập được micro: " + e.message); }
+  show("exam"); startRecording();
+  T(run, 1200);
+};
+function micErr(m) { const e = $("mic-err"); e.textContent = m; e.classList.remove("hid"); }
+function card(q) { const c = $("ui-card"); $("ui-q").textContent = q; c.classList.remove("fade"); void c.offsetWidth; c.classList.add("fade"); }
+
+function run() {
+  clearAll(); speechSynthesis.cancel();
+  const g = ++gen; setBtn(false);
+  if (idx >= STEPS.length) return say("That is the end of the speaking test.", g, finish);
+  const s = STEPS[idx];
+  $("ui-title").textContent = TITLES[s.part] + (s.of ? `  ·  Câu ${s.n}/${s.of}` : "");
+  s.part === 2 ? part2(s, g) : ask(s, g);
+}
+
+function ask(s, g) {
+  $("ui-p2").classList.add("hid"); card(s.q);
+  const L = LIM[s.part];
+  setClock(L.max, L.max, true); $("ui-cdl").textContent = "Giám khảo đang đọc câu hỏi";
+  say((s.lead ? s.lead + " " : "") + s.q, g, () => {
+    openWin(s, L.max, L.sil);
+    setStatus("Đang lắng nghe — hãy trả lời", "on"); $("ui-cdl").textContent = "Thời gian còn lại";
+    $("btn-next-t").textContent = "Tiếp tục"; setBtn(true);
+    T(() => advance("Thank you."), L.max);
+  });
+}
+
+function part2(s, g) {
+  card(TEST.part2.topic);
+  $("ui-p2-bullets").innerHTML = TEST.part2.bullets.map(b => `<li>${esc(b)}</li>`).join("");
+  $("ui-p2").classList.remove("hid");
+  setClock(P2_PREP * 1000, P2_PREP * 1000, true); $("ui-cdl").textContent = "Giám khảo đang giới thiệu đề";
+  say("Now let's move on to Part 2. " + TEST.part2.instruction, g, () => {
+    let left = P2_PREP;
+    setStatus("Hãy chuẩn bị ý tưởng", "prep"); $("ui-cdl").textContent = "Thời gian chuẩn bị";
+    $("btn-next-t").textContent = "Tiếp theo"; setBtn(true); setClock(left * 1000, P2_PREP * 1000, false);
+    const end = skipped => {
+      clearInterval(cdInt); const g2 = ++gen; clearAll(); setBtn(false);
+      say(skipped ? "Alright. Please start speaking now." : "Your preparation time is up. Please start speaking now.", g2, () => {
+        openWin(s, P2_SPEAK * 1000, 0); // Part 2: không ngắt vì im lặng
+        setStatus("Đang lắng nghe — hãy nói", "on"); $("ui-cdl").textContent = "Thời gian nói";
+        $("btn-next-t").textContent = "Tiếp tục"; setBtn(true);
+        T(() => advance("Thank you. That is the end of Part 2."), P2_SPEAK * 1000);
+      });
+    };
+    prepCb = end;
+    cdInt = setInterval(() => { left--; setClock(left * 1000, P2_PREP * 1000, false); if (left <= 0) end(false); }, 1000);
+  });
+}
+
+function advance(txt) {
+  const g = ++gen; clearAll(); speechSynthesis.cancel(); setBtn(false);
+  if (txt) say(txt, g, () => { idx++; run(); }); else { idx++; run(); }
+}
+$("btn-next").onclick = () => { if (prepCb) { const f = prepCb; prepCb = null; f(true); } else advance(null); };
+
+// ================= FINISH + SCORING =================
+function finish() {
+  clearAll(); gen++; clearInterval(gTimer);
+  show("load"); $("ui-stage").textContent = "Đang xử lý bản ghi âm...";
+  rec.onstop = () => { stream.getTracks().forEach(t => t.stop()); blob = new Blob(chunks, { type: rec.mimeType || "audio/webm" }); grade(); };
+  rec.state !== "inactive" ? rec.stop() : rec.onstop();
+}
+$("btn-retry").onclick = grade;
+$("btn-dl").onclick = () => { const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = "ielts-speaking.webm"; a.click(); };
+const b64 = b => new Promise((res, rej) => { const r = new FileReader(); r.onloadend = () => res(r.result.split(",")[1]); r.onerror = rej; r.readAsDataURL(b); });
+const label = w => w.part === 2 ? "Part 2 long turn" : "Part " + w.part + " Q" + w.n;
+
+// Chỉ lấy các đoạn thí sinh trả lời -> WAV 16kHz mono (bỏ giọng giám khảo + thời gian chuẩn bị)
+async function buildAudio() {
+  if (!wins.length) throw new Error("no windows");
+  const ac = new (window.AudioContext || window.webkitAudioContext)();
+  const buf = await ac.decodeAudioData(await blob.arrayBuffer()); ac.close();
+  const tot = wins.reduce((a, w) => a + Math.max(0, (w.end ?? buf.duration) + .4 - (w.start - .2)) + .4, 0);
+  const SR = Math.min(16000, Math.floor(12e6 / (2 * Math.max(tot, 1)))); if (SR < 8000) throw new Error("too long");
+  const oc = new OfflineAudioContext(1, Math.ceil(buf.duration * SR), SR), src = oc.createBufferSource();
+  src.buffer = buf; src.connect(oc.destination); src.start();
+  const mono = (await oc.startRendering()).getChannelData(0), gap = new Float32Array(SR * .4), segs = [], tl = []; let pos = 0;
+  for (const w of wins) {
+    const s = Math.max(0, Math.floor((w.start - .2) * SR)), e = Math.min(mono.length, Math.ceil(((w.end ?? buf.duration) + .4) * SR));
+    if (e - s < SR * .3) continue;
+    tl.push(`- ${fmt(pos / SR)}–${fmt((pos + e - s) / SR)}: ${label(w)}: "${w.q}"`);
+    segs.push(mono.subarray(s, e), gap); pos += e - s + gap.length;
+  }
+  if (!tl.length) throw new Error("no usable audio");
+  const pcm = new Int16Array(pos); let o = 0;
+  for (const sg of segs) for (let i = 0; i < sg.length; i++) pcm[o++] = Math.max(-1, Math.min(1, sg[i])) * 32767;
+  const h = new DataView(new ArrayBuffer(44)), W = (p, s) => [...s].forEach((c, i) => h.setUint8(p + i, c.charCodeAt(0)));
+  W(0, "RIFF"); h.setUint32(4, 36 + pcm.length * 2, true); W(8, "WAVEfmt "); h.setUint32(16, 16, true); h.setUint16(20, 1, true); h.setUint16(22, 1, true);
+  h.setUint32(24, SR, true); h.setUint32(28, SR * 2, true); h.setUint16(32, 2, true); h.setUint16(34, 16, true); W(36, "data"); h.setUint32(40, pcm.length * 2, true);
+  return { data: await b64(new Blob([h, pcm], { type: "audio/wav" })), timeline: tl.join("\n") };
+}
+
+const SYSTEM_PROMPT = `You are a senior, strict and objective IELTS Speaking examiner. You will LISTEN to the audio of a full mock test (Part 1, 2, 3) and score the candidate using ONLY the official IELTS Speaking Band Descriptors (Public Version). The recording may also contain the synthetic examiner voice (text-to-speech) and silence: ignore the examiner and evaluate only the candidate. The user message lists the time windows (mm:ss) in which the candidate was answering each question. Be analytical, critical and never inflate scores. If the candidate said very little or nothing, score accordingly (Band 0-3) and say so.
+
+FLUENCY & COHERENCE: 9 fluent, rare repetition/self-correction, hesitation only content-related, fully appropriate cohesion, topics fully developed. 8 occasional repetition/self-correction, hesitation rarely to search for language, coherent development. 7 speaks at length without noticeable effort, some language-related hesitation/repetition/self-correction, range of connectives and discourse markers with some flexibility. 6 willing to speak at length but loses coherence at times through repetition, self-correction or hesitation; connectives used but not always appropriately. 5 usually maintains flow but uses repetition, self-correction and/or slow speech to keep going; over-uses certain connectives; simple speech fluent, complex communication causes fluency problems. 4 noticeable pauses, slow speech, frequent repetition and self-correction; links basic sentences with simple connectives, coherence breakdowns. 3 long pauses, limited ability to link sentences, simple responses only. 2 lengthy pauses before most words, little communication. 1 no communication/no rateable language. 0 does not attend.
+
+LEXICAL RESOURCE: 9 full flexibility and precision on all topics, idiomatic language natural and accurate. 8 wide vocabulary used readily and flexibly, less common/idiomatic items used skilfully with occasional inaccuracies, effective paraphrase. 7 flexible on a variety of topics, some less common/idiomatic vocabulary with awareness of style and collocation but some inappropriate choices, effective paraphrase. 6 wide enough to discuss topics at length and make meaning clear despite inappropriacies, generally paraphrases successfully. 5 talks about familiar and unfamiliar topics with limited flexibility, paraphrase with mixed success. 4 familiar topics only, basic meaning on unfamiliar topics, frequent word-choice errors, rarely paraphrases. 3 simple vocabulary for personal information, insufficient for unfamiliar topics. 2 isolated words or memorised utterances.
+
+GRAMMATICAL RANGE & ACCURACY: 9 full range of structures naturally, consistently accurate apart from native-like slips. 8 wide range used flexibly, majority of sentences error-free, only occasional basic/non-systematic errors. 7 range of complex structures with some flexibility, frequently error-free sentences though some mistakes persist. 6 mix of simple and complex but limited flexibility, frequent mistakes with complex structures that rarely cause comprehension problems. 5 basic forms reasonably accurate, limited complex structures that usually contain errors and may cause comprehension problems. 4 basic forms and some correct simple sentences, subordinate structures rare, frequent errors may cause misunderstanding. 3 basic forms with limited success or memorised utterances, numerous errors. 2 cannot produce basic sentence forms.
+
+PRONUNCIATION: 9 full range of features with precision and subtlety, sustained, effortless to understand. 8 wide range, sustained flexibly with occasional lapses, easy to understand, L1 accent minimal effect on intelligibility. 7 all positive features of Band 6 and some but not all of Band 8. 6 range of features with mixed control, some effective use not sustained, generally understood though mispronunciation of individual words/sounds reduces clarity at times. 5 all positive features of Band 4 and some but not all of Band 6. 4 limited range, frequent lapses, frequent mispronunciations cause some difficulty. 3 some features of Band 2 and some of Band 4. 2 often unintelligible.
+
+Assess: Fluency (length, hesitation due to word-search vs content, self-correction, connectors); Lexical (flexibility, paraphrase, less common/idiomatic vocabulary); Grammar (range, simple-to-complex variety, proportion of error-free sentences); Pronunciation (features, rhythm, word/sentence stress, intonation, L1 effect on intelligibility).
+
+Each criterion score is a multiple of 0.5 from 0 to 9. Write all feedback in VIETNAMESE, quoting English examples verbatim from what the candidate said. Feedback fields may use Markdown (**bold**, "- " bullets): for each criterion give the band justification, strengths, and how to reach the next band.
+weaknessNotebook: 8-15 items extracted from what the candidate actually said: hesitations/word-search, grammar errors, wrong word choice or collocation, mispronounced words or wrong stress (write the stress/IPA hint in "fix"/"note"). "said" = exact words heard; "fix" = corrected/better version; "note" = short Vietnamese explanation.`;
+
+const SCHEMA = {
+  type: "OBJECT",
+  properties: {
+    scores: { type: "OBJECT", properties: { fluency: { type: "NUMBER" }, lexical: { type: "NUMBER" }, grammar: { type: "NUMBER" }, pronunciation: { type: "NUMBER" } }, required: ["fluency", "lexical", "grammar", "pronunciation"] },
+    feedback: { type: "OBJECT", properties: { summary: { type: "STRING" }, fluency: { type: "STRING" }, lexical: { type: "STRING" }, grammar: { type: "STRING" }, pronunciation: { type: "STRING" } }, required: ["fluency", "lexical", "grammar", "pronunciation"] },
+    weaknessNotebook: { type: "ARRAY", items: { type: "OBJECT", properties: { type: { type: "STRING", description: "Grammar | Lexical | Fluency | Pronunciation" }, said: { type: "STRING" }, fix: { type: "STRING" }, note: { type: "STRING" } }, required: ["type", "said", "fix", "note"] } }
+  },
+  required: ["scores", "feedback", "weaknessNotebook"]
+};
+
+
+async function grade() {
+  show("load");
+  const fails = [];
+  try {
+    if (!blob || blob.size < 5000) throw new Error("Bản ghi âm trống hoặc quá ngắn — không có gì để chấm.");
+    $("ui-stage").textContent = "Đang xử lý âm thanh...";
+    let audio, mime, timeline, note;
+    try {
+      const a = await buildAudio(); audio = a.data; mime = "audio/wav"; timeline = a.timeline;
+      note = "The audio below contains ONLY the candidate's answers, concatenated in order (examiner voice and preparation time removed), separated by short silences.";
+    } catch (err) {
+      console.warn("WAV conversion failed, sending raw recording:", err);
+      if (blob.size > 18 * 1024 * 1024) throw new Error("Bản ghi vượt giới hạn ~20MB của request inline.");
+      audio = await b64(blob); mime = (blob.type || "audio/webm").split(";")[0]; note = "";
+      timeline = wins.map(w => `- ${fmt(w.start)}–${fmt(w.end ?? (Date.now() - t0) / 1000)}: ${label(w)}: "${w.q}"`).join("\n");
+    }
+    const payload = {
+      systemInstruction: { parts: [{ text: SYSTEM_PROMPT }] },
+      contents: [{ role: "user", parts: [
+        { text: `Candidate answer windows in the audio:\n${timeline}\n\n${note}\nScore the candidate from the audio below and return the JSON.` },
+        { inlineData: { mimeType: mime, data: audio } }
+      ] }],
+      generationConfig: { temperature: 0.2, responseMimeType: "application/json", responseSchema: SCHEMA }
+    };
+    for (let i = Math.max(active, 0); i < OPTIONS.length; i++) {
+      $("ui-stage").textContent = `Option ${i + 1} (${TIERS[i]}) đang nghe và chấm bài...`;
+      try {
+        const d = await gemini(OPTIONS[i].id, payload, 240000);
+        const parts = d.candidates?.[0]?.content?.parts || [];
+        let txt = parts.filter(p => p.text && !p.thought).map(p => p.text).join("").replace(/^```json|^```|```$/gm, "").trim();
+        if (!txt) throw new Error("Model không trả về nội dung" + (d.candidates?.[0]?.finishReason ? " (finishReason: " + d.candidates[0].finishReason + ")" : "") + (d.promptFeedback?.blockReason ? " (bị chặn: " + d.promptFeedback.blockReason + ")" : "") + ".");
+        let j; try { j = JSON.parse(txt); } catch { throw new Error("Model trả về dữ liệu không phải JSON hợp lệ."); }
+        const s = j.scores;
+        if (!s || ["fluency", "lexical", "grammar", "pronunciation"].some(k => typeof s[k] !== "number" || isNaN(s[k]))) throw new Error("JSON thiếu điểm thành phần.");
+        return render(j, i);
+      } catch (e) { fails.push(`Option ${i + 1} (${OPTIONS[i].id}): ${e.message}`); }
+    }
+    throw new Error("__ALL__");
+  } catch (e) {
+    $("err-msg").innerHTML = fails.length ? fails.map(f => `<div>✕ ${esc(f)}</div>`).join("") : `<div>${esc(e.message)}</div>`;
+    show("err");
+  }
+}
+
+// ================= RENDER =================
+const sc = n => n >= 7 ? "#34d399" : n >= 5 ? "#fbbf24" : "#f87171";
+function radar(vals) {
+  const C = [180, 140], R = 80, pt = (i, r) => { const a = (-90 + i * 90) * Math.PI / 180; return [C[0] + r * Math.cos(a), C[1] + r * Math.sin(a)]; };
+  const ring = k => vals.map((_, i) => pt(i, R * k).join(",")).join(" ");
+  let g = [1 / 3, 2 / 3, 1].map(k => `<polygon points="${ring(k)}" fill="none" stroke="#3f3f46"/>`).join("");
+  g += vals.map((_, i) => { const [x, y] = pt(i, R); return `<line x1="${C[0]}" y1="${C[1]}" x2="${x}" y2="${y}" stroke="#3f3f46"/>`; }).join("");
+  g += vals.map(([l, s], i) => {
+    const [x, y] = pt(i, R + (i % 2 ? 14 : 24)), anc = i === 1 ? "start" : i === 3 ? "end" : "middle", yy = i % 2 ? y - 6 : (i === 0 ? y - 10 : y + 4);
+    return `<text x="${x}" y="${yy}" text-anchor="${anc}" fill="#a1a1aa" font-size="12">${l}<tspan x="${x}" dy="15" font-size="14" font-weight="700" fill="${sc(s)}">${s.toFixed(1)}</tspan></text>`;
+  }).join("");
+  $("radar").innerHTML = `<svg viewBox="0 0 360 290" class="w-full max-w-sm mx-auto">${g}<polygon id="rd-p" fill="rgba(52,211,153,.2)" stroke="#34d399" stroke-width="2" stroke-linejoin="round"/>${vals.map(v => `<circle class="rd-d" r="5" fill="${sc(v[1])}" stroke="#0a0a0a" stroke-width="2"/>`).join("")}</svg>`;
+  const st = performance.now();
+  (function f(now) {
+    const k = Math.min(1, (now - st) / 1100), e = 1 - Math.pow(1 - k, 3);
+    const ps = vals.map(([, s], i) => pt(i, R * Math.min(1, s / 9) * e));
+    $("rd-p").setAttribute("points", ps.map(p => p.join(",")).join(" "));
+    document.querySelectorAll(".rd-d").forEach((c, i) => { c.setAttribute("cx", ps[i][0]); c.setAttribute("cy", ps[i][1]); });
+    if (k < 1) requestAnimationFrame(f);
+  })(st);
+}
+function render(r, oi) {
+  const half = n => Math.min(9, Math.max(0, Math.round(n * 2) / 2)), s = r.scores;
+  const v = { fluency: half(s.fluency), lexical: half(s.lexical), grammar: half(s.grammar), pronunciation: half(s.pronunciation) };
+  const overall = half((v.fluency + v.lexical + v.grammar + v.pronunciation) / 4);
+  const put = (id, n) => { $(id).textContent = n.toFixed(1); $(id).style.color = sc(n); };
+  put("r-overall", overall); put("r-fluency", v.fluency); put("r-lexical", v.lexical); put("r-grammar", v.grammar); put("r-pron", v.pronunciation);
+  $("r-model").textContent = `Chấm bởi Option ${oi + 1} (${TIERS[oi]}): ${OPTIONS[oi].name}.`;
+  $("footer-note").textContent = FOOTER_NOTE;
+  const fb = r.feedback || {};
+  const blk = (t, x, n) => x ? `<div><h4 class="font-bold text-white mb-1 flex items-center">${t}${n != null ? `<span class="ml-2 text-xs px-2 py-0.5 rounded-full" style="background:${sc(n)}22;color:${sc(n)}">Band ${n.toFixed(1)}</span>` : ""}</h4><div class="text-gray-400">${md(x)}</div></div>` : "";
+  $("r-feedback").innerHTML = blk("Tổng quan", fb.summary) + blk("Fluency & Coherence", fb.fluency, v.fluency) + blk("Lexical Resource", fb.lexical, v.lexical) + blk("Grammatical Range & Accuracy", fb.grammar, v.grammar) + blk("Pronunciation", fb.pronunciation, v.pronunciation);
+  const nb = r.weaknessNotebook || [];
+  $("r-notebook").innerHTML = nb.length ? nb.map(i => `<div class="bg-neutral-800/60 p-4 rounded-lg border border-neutral-700/50 border-l-4 !border-l-red-500/70 text-sm">
+      <span class="inline-block px-2 py-0.5 rounded text-xs font-medium border border-neutral-500 bg-neutral-700/60 text-gray-200 mb-2">${esc(i.type)}</span>
+      <div class="mb-1"><span class="text-red-400 font-semibold">Bạn nói:</span> <span class="text-red-300/90 italic line-through decoration-red-500/50">"${esc(i.said)}"</span></div>
+      <div class="mb-1"><span class="text-emerald-400 font-semibold">Nên là:</span> <span class="text-emerald-200">${esc(i.fix)}</span></div>
+      <div class="text-gray-400 text-xs">${esc(i.note)}</div></div>`).join("") : '<p class="text-gray-500 italic">Không ghi nhận điểm yếu cụ thể.</p>';
+  pendingRadar = [["Fluency", v.fluency], ["Lexical", v.lexical], ["Grammar", v.grammar], ["Pronunciation", v.pronunciation]];
+  show("congrats"); setTimeout(confetti, 450);
+  clearTimeout(resTimer); resTimer = setTimeout(showResults, 5200);
+}
+let pendingRadar = null, resTimer = null;
+function showResults() {
+  clearTimeout(resTimer); if (cur === "res") return;
+  show("res"); setTimeout(() => radar(pendingRadar), 700);
+}
+$("btn-see").onclick = showResults;
+
+// Pháo giấy chúc mừng: 2 khẩu bắn từ hai góc dưới + mưa giấy rơi từ trên
+function confetti() {
+  const cv = $("confetti"), x = cv.getContext("2d"); cv.width = innerWidth; cv.height = innerHeight;
+  const cols = ["#34d399", "#fbbf24", "#f87171", "#60a5fa", "#f472b6", "#ffffff", "#a78bfa"], P = [], pick = () => cols[Math.random() * cols.length | 0];
+  const shot = (px, lo, hi, n) => { for (let i = 0; i < n; i++) { const a = (lo + Math.random() * (hi - lo)) * Math.PI / 180, sp = 14 + Math.random() * 16; P.push({ x: px, y: cv.height + 10, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp, w: 6 + Math.random() * 8, h: 4 + Math.random() * 10, r: Math.random() * 6, vr: (Math.random() - .5) * .4, c: pick() }); } };
+  const rain = n => { for (let i = 0; i < n; i++) P.push({ x: Math.random() * cv.width, y: -20 - Math.random() * 200, vx: (Math.random() - .5) * 3, vy: 2 + Math.random() * 4, w: 6 + Math.random() * 6, h: 4 + Math.random() * 9, r: Math.random() * 6, vr: (Math.random() - .5) * .3, c: pick() }); };
+  shot(0, -80, -45, 90); shot(cv.width, -135, -100, 90);
+  setTimeout(() => { shot(0, -80, -45, 70); shot(cv.width, -135, -100, 70); rain(80); }, 900);
+  setTimeout(() => rain(90), 1900);
+  const end = performance.now() + 2800;
+  (function f() {
+    x.clearRect(0, 0, cv.width, cv.height);
+    for (const p of P) { p.vy += .35; p.vx *= .992; p.vy *= .992; p.x += p.vx; p.y += p.vy; p.r += p.vr; x.save(); x.translate(p.x, p.y); x.rotate(p.r); x.fillStyle = p.c; x.fillRect(-p.w / 2, -p.h / 2, p.w, p.h * Math.abs(Math.cos(p.r * 2)) + 1); x.restore(); }
+    for (let i = P.length - 1; i >= 0; i--) if (P[i].y > cv.height + 40) P.splice(i, 1);
+    if (P.length || performance.now() < end) requestAnimationFrame(f); else x.clearRect(0, 0, cv.width, cv.height);
+  })();
+}
+</script>
+</body>
+</html>
